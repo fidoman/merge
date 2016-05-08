@@ -139,13 +139,22 @@ def export_goods(conn):
   """ will export:
   Код, Наименование, Группа, Штрихкод, Производитель, Характеристика, Артикул, Веснетто, Изображение, 
   Цена, Доступно, Объём"""
-
   cursor1 = conn.cursor()
+
+  prefixes = {}
+  for srcid, prefix in cursor1.execute("select srcid, prefix from sources"):
+    prefixes[srcid] = prefix
+    #print(repr(srcid), repr(prefix))
+
   cursor2 = conn.cursor()
   for goodid, name, description, volume, manufacturer, year, code, pic in cursor1.execute("select * from goods"):
     # get price and availability from src_data
-    for s, p, a, x in cursor2.execute("select srcid, price, avail, xid from src_data where goodid=? order by srcid", (goodid,)):
-      print(goodid, s, p, a, x)
+    for s, p, a, x, g, b, w, v in cursor2.execute("select srcid, price, avail, xid, grp, barcode, "
+            "net_weight, volume from src_data where goodid=? order by srcid", (goodid,)):
+      if int(avail)<2:
+        continue # go to next source if this do not have supplies
+      print(prefixes[s]+x, name, g, b, manufacturer, description, code, w, pic, p, a, v)
+      break # no more sources necessary
 
 # ---
 
