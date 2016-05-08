@@ -22,8 +22,11 @@ if INIT:
   conn.cursor().execute("insert into sources values (2, 'spectorg_q.dat', 'S-')")
 
 
-conn.cursor().execute("create table if not exists src_data(src_exists, srcid, goodid, xid, name, "
-      "img, price, pack, bulk, year, code, barcode, descr, manuf, avail, grp, net_weight, volume)")
+SRCDATA_FIELDS=("xid", "name", "img", "price", "pack", "bulk", "year", "code", "barcode", "descr", 
+                "manuf", "avail", "grp", "net_weight", "volume")
+
+conn.cursor().execute("create table if not exists src_data(src_exists, srcid, goodid, " +
+          ", ".join(SRCDATA_FIELDS)+")")
 conn.cursor().execute("create unique index if not exists src_index ON src_data (srcid, xid)")
 
 conn.cursor().execute("create table if not exists goods(goodid INTEGER PRIMARY KEY AUTOINCREMENT, name, description, volume, manufacturer, year, code, pic)")
@@ -121,6 +124,27 @@ print("deleted:", len(deletions))
 
 print("END SOURCES ANALYZIS")
 
+# --- database operations ---
+
+def get_srcdata(conn, srcid, goodid):
+    l=list(conn.cursor().execute("select xid, name, img, price, pack, bulk, year, code, barcode, descr, manuf, "
+    "avail, grp, net_weight, volume from src_data where srcid=? and goodid=?", (srcid, goodid)))
+    if len(l)==0:
+      raise Exception("No src_data for %s in source %s"%(repr(goodid), repr(srcid)))
+    if len(l)>1:
+      raise Exception("Multiple src_data for %s in source %s"%(repr(goodid), repr(srcid)))
+    return l[0]
+
+def export_goods(conn):
+  cursor1 = conn.cursor()
+  cursor2 = conn.cursor()
+  for g in conn.cursor().execute("select * from goods"):
+    # get price and availability from src_data
+    for s in cursor2.execute("select price, availability from src_data where goodid=? order by srcid"):
+      ..
+
+# ---
+
 # deletions - drop from sources
 # new records - match with goods (with code, name, or manual selection)
 # updated (and newly matched) - mark for review
@@ -167,6 +191,9 @@ if INIT:
 
   open("m","w").write(repr(m))
 # --- END INIT ---
+
+#print(get_srcdata(conn, 1,10))
+#exit()
 
 
 #3 set availability in unverified to 0 -- generate on export
@@ -233,6 +260,9 @@ for gi, gn in cs.execute("select goodid, name from goods"):
 delgood = Button(goodslist, text="удалить товар")
 delgood.grid(row=4)
 
+exportgoods = Button(goodslist, text="Выгрузить")
+exportgoods.grid(row=4)
+
 
 
 goodinfo = Frame(fgoods)
@@ -275,6 +305,8 @@ goodsourcedata.grid(row=7, column=1)
 goodinfofields = [name, descr, volume, manuf, year, code, pic, goodsources, goodsourcedata]
 
 def refresher(goods, i):
+  "refresh selected good's info"
+
   sel=goods.curselection()
   if sel!=goods.oldselection:
     i[0].delete(0, END)
@@ -288,8 +320,8 @@ def refresher(goods, i):
     i[8].delete("0.0", END)
 
     if sel:
-      goodid=goods.get(sel[0]).split(' ',1)[0]
-      print(goodid)
+      goodid=int(goods.get(sel[0]).split(' ',1)[0])
+      print("goodid=",goodid)
       gname, gdescription, gvolume, gmanufacturer, gyear, gcode, gpic = \
         list(cs.execute("select name, description, volume, manufacturer, year, code, pic from goods where goodid=?", (goodid,)))[0]
       i[0].insert(0, gname or '')
@@ -309,16 +341,33 @@ def refresher(goods, i):
         gsrcname=list(cs.execute("select srcfile from sources where srcid=?", (int(gsrcid),)))[0][0]
         i[7].insert(END, "source %s %s"%(gsrcid, gsrcname))
 
-      i[7].oldsel=i[7].curselection()
+      i[7].oldsel=i[7].curselection() # essentially no selection
 
     goods.oldselection=sel
-    
-  else:
-    # just check selection in sources listbox
-    if i[7].curselection()!=i[7].oldsel:
+
+
+  # check selection in sources listbox
+  if sel and i[7].curselection()!=i[7].oldsel:
+      "if good is selected, check for reselected source"
       print(i[7].curselection(), i[7].oldsel)
-      i[8].insert(END, "line1\n")
-      i[8].insert(END, "line2\n")
+      goodid=int(goods.get(sel[0]).split(' ',1)[0])
+      src_selection = i[7].curselection()
+      if src_selection:
+        src_selected = i[7].get(src_selection[0])
+        sel_srcid=int(src_selected.split(' ',2)[1])
+        sel_srcrec=get_srcdata(conn,sel_srcid,goodid)
+        sel_xid=sel_srcrec[0]
+        i[8].insert(END, "%s goodid: %d\n"%(src_selected, goodid))
+        sel_changes = changes.get((sel_srcid, sel_xid))
+        if sel_changes:
+          i[8].insert(END, "changes: "+repr(changes)) ### MAKE READABLE
+        else:
+          i[8].insert(END, "no changes\n")
+        for item_name, sel_srcrec_item in zip(SRCDATA_FIELDS, sel_srcrec):
+          if sel_srcrec_item:
+            i[8].insert(END, "%s: %s\n"%(item_name, sel_srcrec_item))
+      else:
+        i[8].delete("0.0", END)
       i[7].oldsel=i[7].curselection()
     
   goods.after(200, lambda: refresher(goods, i))
@@ -326,7 +375,7 @@ def refresher(goods, i):
 def good_updater(goods, i):
   sel=goods.curselection()
   if sel:
-    goodid=goods.get(sel[0]).split(' ',1)[0]
+    goodid=int(goods.get(sel[0]).split(' ',1)[0])
     cs.execute("update goods set name=?, description=?, volume=?, manufacturer=?, year=?, code=? "
       "where goodid=?", (i[0].get(), i[1].get(), i[2].get(), i[3].get(), i[4].get(), i[5].get(), goodid))
     print(goodid, "updated")
