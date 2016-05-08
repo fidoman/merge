@@ -136,12 +136,16 @@ def get_srcdata(conn, srcid, goodid):
     return l[0]
 
 def export_goods(conn):
+  """ will export:
+  Код, Наименование, Группа, Штрихкод, Производитель, Характеристика, Артикул, Веснетто, Изображение, 
+  Цена, Доступно, Объём"""
+
   cursor1 = conn.cursor()
   cursor2 = conn.cursor()
-  for g in conn.cursor().execute("select * from goods"):
+  for goodid, name, description, volume, manufacturer, year, code, pic in cursor1.execute("select * from goods"):
     # get price and availability from src_data
-    for s in cursor2.execute("select price, availability from src_data where goodid=? order by srcid"):
-      ..
+    for s, p, a, x in cursor2.execute("select srcid, price, avail, xid from src_data where goodid=? order by srcid", (goodid,)):
+      print(goodid, s, p, a, x)
 
 # ---
 
@@ -193,7 +197,9 @@ if INIT:
 # --- END INIT ---
 
 #print(get_srcdata(conn, 1,10))
-#exit()
+export_goods(conn)
+exit()
+
 
 
 #3 set availability in unverified to 0 -- generate on export
