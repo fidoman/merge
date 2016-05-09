@@ -187,7 +187,7 @@ if INIT:
     trans[xid] = (name, descr, vol)
 
   m={}
-  for srcid, xid in new_recs.keys():
+  for srcid, xid in list(new_recs.keys()):
     name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight,volume = new_recs[(srcid, xid)]
     if srcid==1:
       #print("adding xid", xid)
@@ -197,14 +197,15 @@ if INIT:
         g_name=tr[0] or name
         g_descr=tr[1] or descr
         g_volume=tr[2] or volume
-        print(xid, "is known, adding as good")
+        #print(xid, "is known, adding as good")
         cs.execute("insert into goods values (NULL, ?, ?, ?, ?, ?, ?, ?)", (g_name, g_descr, g_volume, manuf, year, code, img))
         goodid = conn.last_insert_rowid()
         cs.execute("insert into src_data values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
           (True, srcid, goodid, xid, name, img, price, pack,bulk,year,code,barcode,descr,manuf,avail,group,net_weight,volume))
-        new_recs.pop([srcid, xid])
+        new_recs.pop((srcid, xid))
       else:
-        print(xid, "not in translations, skipping")
+        #print(xid, "not in translations, skipping")
+        pass
 
     else:
       print(srcid, name, manuf, code)
@@ -215,6 +216,9 @@ if INIT:
           m.setdefault((manuf, e[0][4]), []).append(code)
 
   open("m","w").write(repr(m))
+  print("new records after INIT:", len(new_recs))
+
+
 # --- END INIT ---
 
 #print(get_srcdata(conn, 1,10))
