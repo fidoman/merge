@@ -391,6 +391,7 @@ def refresher(goods, i):
 
   # check selection in sources listbox
   if sel and i[7].curselection()!=i[7].oldsel:
+      i[8].delete("0.0", END) # cleanup textbox
       "if good is selected, check for reselected source"
       print(i[7].curselection(), i[7].oldsel)
       goodid=int(goods.get(sel[0]).split(' ',1)[0])
