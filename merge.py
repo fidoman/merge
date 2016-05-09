@@ -445,6 +445,9 @@ sources.pack()
 srcrecs = Listbox(fsuppliers)
 srcrecs.pack()
 
+srcrec_text = Text(fsuppliers, width=30, height=10)
+srcrec_text.pack()
+
 searchgood = Button(fsuppliers, text="найти подходящие товары")
 searchgood.pack()
 
