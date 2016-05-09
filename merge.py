@@ -187,6 +187,7 @@ if INIT:
     trans[xid] = (name, descr, vol)
 
   m={}
+  print("Processing source #1")
   for srcid, xid in list(new_recs.keys()):
     name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight,volume = new_recs[(srcid, xid)]
     if srcid==1:
@@ -207,12 +208,23 @@ if INIT:
         #print(xid, "not in translations, skipping")
         pass
 
-    else:
-      print(srcid, name, manuf, code)
-      if code:
+  print("Processing other sources")
+  for srcid, xid in list(new_recs.keys()):
+    if srcid==1:
+      continue # no reason to try again
+    name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight,volume = new_recs[(srcid, xid)]
+    #print(srcid, name, manuf, code)
+    if code:
         e=list(cs.execute("select * from goods where code=?", (code,)))
-        if e:
+        if len(e)==1:
           #m[(manuf, e[0][4])]=m.get((manuf, e[0][4]), 0) + 1
+          goodid = e[0][0]
+          print(srcid, name, manuf, "code=%s"%code, "goodid=%d"%goodid)
+          print("Found unique good with same code")
+          # attach to good: set goodid and remove from new_recs
+          cs.execute("insert into src_data values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (True, srcid, goodid, xid, name, img, price, pack,bulk,year,code,barcode,descr,manuf,avail,group,net_weight,volume))
+          new_recs.pop((srcid, xid))
           m.setdefault((manuf, e[0][4]), []).append(code)
 
   open("m","w").write(repr(m))
