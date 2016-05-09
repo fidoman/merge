@@ -72,7 +72,7 @@ cs.execute("update src_data set src_exists=?", (False,))
 #22 if source record is new start object add/assign to existing procedure
 
 changes = {}
-new_recs = []
+new_recs = {}
 deletions = []
 
 sources = list(cs.execute("select * from sources"))
@@ -96,7 +96,7 @@ for srcid, srcfile, prefix in sources:
         print("record", srcid, xid, "identication changed, dropping")
         # delete relation to good - recreate record
         deletions.append([srcid, xid])
-        new_recs.append([srcid, xid, name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight,volume])
+        new_recs[(srcid, xid)]=(name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight,volume)
 
       elif name!=db_name or img!=db_img or pack!=db_pack or bulk!=db_bulk or barcode!=db_barcode or \
         descr!=db_descr or group!=db_group or net_weight!=db_net_weight or volume!=db_volume:
@@ -112,7 +112,7 @@ for srcid, srcfile, prefix in sources:
         pass
     else:
       print("src", srcid, "new record", xid)
-      new_recs.append([srcid, xid, name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight,volume])
+      new_recs[(srcid, xid)]=(name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight,volume)
 
   print(srcfile, "done")
 
@@ -141,6 +141,9 @@ def export_goods(conn):
   Цена, Доступно, Объём"""
   cursor1 = conn.cursor()
 
+  out1 = open("price_CP1251.tsv", "w", encoding="CP1251")
+  out2 = open("price_UTF-8.tsv", "w", encoding="UTF-8")
+
   prefixes = {}
   for srcid, prefix in cursor1.execute("select srcid, prefix from sources"):
     prefixes[srcid] = prefix
@@ -153,8 +156,15 @@ def export_goods(conn):
             "net_weight, volume from src_data where goodid=? order by srcid", (goodid,)):
       if int(avail)<2:
         continue # go to next source if this do not have supplies
-      print(prefixes[s]+x, name, g, b, manufacturer, description, code, w, pic, p, a, v)
+      outstr = "\t".join((prefixes[s]+x, name or '', g or '', b or '', manufacturer or '', 
+                          description or '', code or '', w or '', pic or '', p or '', a or '', v or ''))+"\n"
+      out1.write(outstr)
+      out2.write(outstr)
       break # no more sources necessary
+
+  out1.close()
+  out2.close()
+  print("Saved")
 
 # ---
 
@@ -177,7 +187,8 @@ if INIT:
     trans[xid] = (name, descr, vol)
 
   m={}
-  for srcid, xid, name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight,volume in new_recs:
+  for srcid, xid in new_recs.keys():
+    name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight,volume = new_recs[(srcid, xid)]
     if srcid==1:
       #print("adding xid", xid)
       #..create good, get data from translations
@@ -191,6 +202,7 @@ if INIT:
         goodid = conn.last_insert_rowid()
         cs.execute("insert into src_data values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
           (True, srcid, goodid, xid, name, img, price, pack,bulk,year,code,barcode,descr,manuf,avail,group,net_weight,volume))
+        new_recs.pop([srcid, xid])
       else:
         print(xid, "not in translations, skipping")
 
@@ -206,8 +218,8 @@ if INIT:
 # --- END INIT ---
 
 #print(get_srcdata(conn, 1,10))
-export_goods(conn)
-exit()
+#export_goods(conn)
+#exit()
 
 
 
@@ -276,8 +288,8 @@ delgood = Button(goodslist, text="удалить товар")
 delgood.grid(row=4)
 
 exportgoods = Button(goodslist, text="Выгрузить")
-exportgoods.grid(row=4)
-
+exportgoods.grid(row=5)
+exportgoods.config(command=lambda: export_goods(conn))
 
 
 goodinfo = Frame(fgoods)
