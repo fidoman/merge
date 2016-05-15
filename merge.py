@@ -26,7 +26,7 @@ if INIT:
 SRCDATA_FIELDS=("xid", "name", "img", "price", "pack", "bulk", "year", "code", "barcode", "descr", 
                 "manuf", "avail", "grp", "net_weight", "volume")
 
-conn.cursor().execute("create table if not exists src_data(src_exists, srcid, goodid, " +
+conn.cursor().execute("create table if not exists src_data(src_exists, ignored, srcid, goodid, " +
           ", ".join(SRCDATA_FIELDS)+")")
 conn.cursor().execute("create unique index if not exists src_index ON src_data (srcid, xid)")
 
@@ -56,10 +56,6 @@ conn.cursor().execute("create table if not exists "
 root = Tk()
 
 cs = conn.cursor()
-
-def new_srcrec(conn, gui, src_record):
-  "returns goodid if assignment succeful"
-  1/0
 
 print("SOURCES ANALYZIS")
 # no database changes during analysis
@@ -203,8 +199,8 @@ if INIT:
         #print(xid, "is known, adding as good")
         cs.execute("insert into goods values (NULL, ?, ?, ?, ?, ?, ?, ?)", (g_name, g_descr, g_volume, manuf, year, code, img))
         goodid = conn.last_insert_rowid()
-        cs.execute("insert into src_data values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-          (True, srcid, goodid, xid, name, img, price, pack,bulk,year,code,barcode,descr,manuf,avail,group,net_weight,volume))
+        cs.execute("insert into src_data values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+          (True, False, srcid, goodid, xid, name, img, price, pack,bulk,year,code,barcode,descr,manuf,avail,group,net_weight,volume))
         new_recs.pop((srcid, xid))
       else:
         #print(xid, "not in translations, skipping")
@@ -224,16 +220,24 @@ if INIT:
           print(srcid, name, manuf, "code=%s"%code, "goodid=%d"%goodid)
           print("Found unique good with same code")
           # attach to good: set goodid and remove from new_recs
-          cs.execute("insert into src_data values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (True, srcid, goodid, xid, name, img, price, pack,bulk,year,code,barcode,descr,manuf,avail,group,net_weight,volume))
+          cs.execute("insert into src_data values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (True, False, srcid, goodid, xid, name, img, price, pack,bulk,year,code,barcode,descr,manuf,avail,group,net_weight,volume))
           new_recs.pop((srcid, xid))
           m.setdefault((manuf, e[0][4]), []).append(code)
 
   open("m","w").write(repr(m))
   print("new records after INIT:", len(new_recs))
 
-
 # --- END INIT ---
+
+# adding new records to database
+
+for srcid, xid in list(new_recs.keys()):
+  name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight,volume = new_recs[(srcid, xid)]
+  cs.execute("insert into src_data values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    (True, False, srcid, None, xid, name, img, price, pack,bulk,year,code,barcode,descr,manuf,avail,group,net_weight,volume))
+
+del new_recs
 
 #print(get_srcdata(conn, 1,10))
 #export_goods(conn)
@@ -246,11 +250,11 @@ if INIT:
 #41 reset updated flag after review
 
 # -----------------------
-# process deletions
-for srcid, xid in deletions:
-  print("deleting",srcid,xid)
-  cs.execute("delete from src_data where srcid=? and xid=?", (srcid, xid))
-  # no more actions as unsources good are not exported due to no source with non-zero availability
+# process deletions - DO NOTHING. Keep it as "no src" as the record may reappear
+#for srcid, xid in deletions:
+#  print("deleting",srcid,xid)
+#  cs.execute("delete from src_data where srcid=? and xid=?", (srcid, xid))
+#  # no more actions as unsources good are not exported due to no source with non-zero availability
 
 # new records
 #for srcid, xid, name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight in new_recs:
@@ -325,12 +329,22 @@ def update_goods_only_changes(conn, goods):
 
 gfchanged.config(command = lambda: update_goods_only_changes(conn, goods))
 
+def update_goods_for_code(conn, goods, code):
+  """ filter goods with similar code (same beginning """
+  goods.delete(0, END)
+  goods.oldselection = None
+  code=code.upper()
+  for gi, gn, gd, gm, gc in conn.cursor().execute("select goodid, name, description, manufacturer, code from goods"):
+    gc=gc.upper()
+    if gc and code and (code.startswith(gc) or gc.startswith(code)):
+      goods.insert(END, "%d %s"%(gi,gn))
+
 
 delgood = Button(goodslist, text="удалить товар")
 delgood.grid(row=4)
 # set goodid to none in src_recs
 # delete from goods
-# add to new_recs
+# //add to new_recs
 # refresh source listboxes
 
 sources_changed = False
@@ -343,16 +357,16 @@ def delete_good(conn, goods, src_info):
   goodid = int(goods.get(sel[0]).split(" ", 2)[0])
   print("del good", goodid)
 
-  save_recs = list(cs.execute("select srcid, xid, name, img, price, pack, bulk, year, code, barcode, descr, manuf, avail, "
-      "grp, net_weight,volume from src_data where goodid=?", (goodid,)))
+#  save_recs = list(cs.execute("select srcid, xid, name, img, price, pack, bulk, year, code, barcode, descr, manuf, avail, "
+#      "grp, net_weight,volume from src_data where goodid=?", (goodid,)))
 
   cs.execute("update src_data set goodid=NULL where goodid=?", (goodid,))
   cs.execute("delete from goods where goodid=?", (goodid,))
   goods.delete(sel[0])
   goods.oldselection = None
 
-  for r in save_recs:
-    new_recs[(r[0], r[1])]=tuple(r[2:])
+#  for r in save_recs:
+#    new_recs[(r[0], r[1])]=tuple(r[2:])
 
   src_info[0] = True
 
@@ -365,7 +379,7 @@ exportgoods.config(command=lambda: export_goods(conn))
 goodinfo = Frame(fgoods)
 goodinfo.grid(row=0, column=1)
 
-pic = Canvas(goodinfo, width=256, height=256)
+pic = Canvas(goodinfo, width=128, height=128)
 pic.grid(row=0, column=2, rowspan=8)
 
 name = Entry(goodinfo, width=40)
@@ -427,7 +441,7 @@ def refresher(goods, i):
       i[3].insert(0, gmanufacturer or '')
       i[4].insert(0, gyear or '')
       i[5].insert(0, gcode or '')
-      i[6].create_text((128,128), text='figa.jpg')
+      i[6].create_text((64,64), text='figa.jpg')
       print("selected goodid=", repr(goodid))
       gsrcs=list(cs.execute("select srcid, xid "
         #"src_exists, srcid, goodid, xid, name, "
@@ -515,9 +529,10 @@ def update_srcrecs_list(conn, sources, srcrecs):
   if sources.curselection():
     sel = sources.get(sources.curselection()[0])
     sel_srcid = int(sel.split(" ",2)[0])
-    for srcid, xid in new_recs.keys():
+#    for srcid, xid in new_recs.keys():
+    for srcid, xid, name in conn.cursor().execute("select srcid, xid, name from src_data where goodid is NULL"):
       if srcid == sel_srcid:
-        name = new_recs[(srcid, xid)][0]
+        #name = new_recs[(srcid, xid)][0]
         srcrecs.insert(END, xid+" "+name)
 
 def update_srcrec_text(conn, sources, srcrecs, record):
@@ -533,9 +548,10 @@ def update_srcrec_text(conn, sources, srcrecs, record):
   else:
     return
   #record.insert(END, "%d %s\n"%(sel_srcid, sel_xid))
-  rec = new_recs[(sel_srcid, sel_xid)]
-  for r1 in rec:
-    record.insert(END, "%s\n"%r1)
+  rec = list(conn.cursor().execute("select "+",".join(SRCDATA_FIELDS)+" from src_data where srcid=? and xid=?",
+       (sel_srcid, sel_xid)))[0]
+  for n, v in zip(SRCDATA_FIELDS, rec):
+    record.insert(END, "%s: %s\n"%(n, v))
 
 src_info = [False, sources, srcrecs, srcrec_text]
 # first field is 'force refresh'
@@ -573,8 +589,34 @@ sources.after(1000, lambda: src_refresher(conn, src_info))
 searchgood = Button(fsuppliers, text="найти подходящие товары")
 searchgood.pack()
 
+def search_goods_for_code(conn, goods, src_info):
+  sources = src_info[1]
+  srcrecs = src_info[2]
+
+  if sources.curselection():
+    sel = sources.get(sources.curselection()[0])
+    sel_srcid = int(sel.split(" ",2)[0])
+  else:
+    print("source not selected")
+    return
+  if srcrecs.curselection():
+    sel = srcrecs.get(srcrecs.curselection()[0])
+    sel_xid = sel.split(" ",2)[0]
+  else:
+    print("record not selected")
+    return
+
+  code=list(conn.cursor().execute("select code from src_data where srcid=? and xid=?", (sel_srcid, sel_xid)))[0][0]
+  print("filtering for code", code)
+  update_goods_for_code(conn, goods, code)
+
+searchgood.config(command = lambda: search_goods_for_code(conn, goods, src_info))
+
 assignrec = Button(fsuppliers, text="привязать к выбранному товару")
 assignrec.pack()
+
+newgood = Button(fsuppliers, text="добавить как новый товар")
+newgood.pack()
 
 #w = Label(root, text="preparing...")
 #w.pack()
