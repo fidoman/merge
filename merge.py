@@ -347,7 +347,6 @@ delgood.grid(row=4)
 # //add to new_recs
 # refresh source listboxes
 
-sources_changed = False
 
 def delete_good(conn, goods, src_info):
   cs=conn.cursor()
@@ -502,6 +501,22 @@ goods.after(1000, lambda: refresher(goods, goodinfofields))
 unbindsrc = Button(goodinfo, text="отвязать выбранный источник")
 unbindsrc.grid(row=8, column=0, columnspan=2)
 
+def unbind_source(conn, goods, goodsources, src_info):
+  sel_good = goods.curselection()
+  if not sel_good:
+    print("good is not selected")
+    return
+  sel_src = goodsources.curselection()
+  if not sel_src:
+    print("source is not selected")
+    return
+  goodid = int(goods.get(sel_good[0]).split(" ", 2)[0])
+  srcid = int(goodsources.get(sel_src[0]).split(" ", 2)[1])
+  conn.cursor().execute("update src_data set goodid=NULL where goodid=? and srcid=?", (goodid, srcid))
+  goods.oldselection = None
+  src_info[0] = True
+
+
 # --- sources
 
 fsuppliers = LabelFrame(root, text="Прайслисты")
@@ -558,6 +573,7 @@ src_info = [False, sources, srcrecs, srcrec_text]
 
 # must be here as it must trigger refresh of sources
 delgood.config(command = lambda: delete_good(conn, goods, src_info))
+unbindsrc.config(command = lambda: unbind_source(conn, goods, goodsources, src_info))
 
 # обновление данных о товаре при изменении selection
 # обновление виджетов при изменении списка новых (непривязанных) позиций
