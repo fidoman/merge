@@ -439,14 +439,47 @@ unbindsrc.grid(row=8, column=0, columnspan=2)
 fsuppliers = LabelFrame(root, text="Прайслисты")
 fsuppliers.grid(row=0, column=1)
 
-sources = Listbox(fsuppliers, height=3)
+sources = Listbox(fsuppliers, height=3, exportselection=0)
 sources.pack()
 
-srcrecs = Listbox(fsuppliers)
+srcrecs = Listbox(fsuppliers, exportselection=0)
 srcrecs.pack()
 
 srcrec_text = Text(fsuppliers, width=30, height=10)
 srcrec_text.pack()
+
+def update_sources_list(conn, sources):
+  sources.delete(0, END)
+  for srcid, srcfile in conn.cursor().execute("select srcid, srcfile from sources"):
+    sources.insert(END, "%d %s"%(srcid, srcfile))
+
+
+def update_srcrecs_list(source):
+  # list of unassigned source records
+  pass
+  
+def update_srcrec_text(source, record):
+  pass
+
+src_info = [False, sources, srcrecs, srcrec_text]
+# first field is 'force refresh'
+
+# обновление данных о товаре при изменении selection
+# обновление виджетов при изменении списка новых (непривязанных) позиций
+
+def src_refresher(src_info):
+  #
+  sources = src_info[1]
+  force_update = src_info[0]
+  if sources.curselection() != sources.oldselection:
+    print("refresh source recs")
+    ###
+    sources.oldselection=sources.curselection()
+  sources.after(201, lambda: src_refresher(src_info))
+
+update_sources_list(conn, sources)
+sources.oldselection = None
+sources.after(1000, lambda: src_refresher(src_info))
 
 searchgood = Button(fsuppliers, text="найти подходящие товары")
 searchgood.pack()
