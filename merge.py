@@ -5,6 +5,7 @@ from tkinter import *
 import time
 import ast
 import os
+import re
 
 INIT=True
 
@@ -29,7 +30,8 @@ conn.cursor().execute("create table if not exists src_data(src_exists, srcid, go
           ", ".join(SRCDATA_FIELDS)+")")
 conn.cursor().execute("create unique index if not exists src_index ON src_data (srcid, xid)")
 
-conn.cursor().execute("create table if not exists goods(goodid INTEGER PRIMARY KEY AUTOINCREMENT, name, description, volume, manufacturer, year, code, pic)")
+conn.cursor().execute("create table if not exists "
+   "goods(goodid INTEGER PRIMARY KEY AUTOINCREMENT, name, description, volume, manufacturer, year, code, pic)")
 
 # events: 
 #   attribute change
@@ -279,11 +281,8 @@ for srcid, xid in deletions:
 fgoods = LabelFrame(root, text="Товары")
 fgoods.grid(row=0, column=0)
 
-
-
 goodslist = Frame(fgoods)
 goodslist.grid(row=0, column=0)
-
 
 goodfilter = Entry(goodslist)
 goodfilter.grid(row=0, sticky=N)
@@ -297,8 +296,21 @@ gfchanged.grid(row=2)
 goods = Listbox(goodslist, exportselection=0)
 goods.grid(row=3, sticky=S+N)
 
-for gi, gn in cs.execute("select goodid, name from goods"):
-  goods.insert(END, "%d %s"%(gi,gn))
+def update_goods(conn, goods, goods_filter):
+  goods.delete(0, END)
+  goods.oldselection = None
+  gf = re.compile(goods_filter, re.I)
+  for gi, gn, gd, gm, gc in cs.execute("select goodid, name, description, manufacturer, code from goods"):
+    if gf.search(gn) or gf.search(gd) or gf.search(gm) or gf.search(gc):
+      goods.insert(END, "%d %s"%(gi,gn))
+
+update_goods(conn, goods, '')
+
+def set_goods_filter(coon, goods, goodfilter):
+  update_goods(conn, goods, goodfilter.get())
+
+gfapply.config(command=lambda: set_goods_filter(conn, goods, goodfilter))
+
 
 delgood = Button(goodslist, text="удалить товар")
 delgood.grid(row=4)
