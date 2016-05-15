@@ -466,8 +466,22 @@ def update_srcrecs_list(conn, sources, srcrecs):
         name = new_recs[(srcid, xid)][0]
         srcrecs.insert(END, xid+" "+name)
 
-def update_srcrec_text(source, record):
-  pass
+def update_srcrec_text(conn, sources, srcrecs, record):
+  record.delete("0.0", END)
+  if sources.curselection():
+    sel = sources.get(sources.curselection()[0])
+    sel_srcid = int(sel.split(" ",2)[0])
+  else:
+    return
+  if srcrecs.curselection():
+    sel = srcrecs.get(srcrecs.curselection()[0])
+    sel_xid = sel.split(" ",2)[0]
+  else:
+    return
+  #record.insert(END, "%d %s\n"%(sel_srcid, sel_xid))
+  rec = new_recs[(sel_srcid, sel_xid)]
+  for r1 in rec:
+    record.insert(END, "%s\n"%r1)
 
 src_info = [False, sources, srcrecs, srcrec_text]
 # first field is 'force refresh'
@@ -480,10 +494,15 @@ def src_refresher(conn, src_info):
   sources = src_info[1]
   force_update = src_info[0]
   srcrecs = src_info[2]
+  record = src_info[3]
   if sources.curselection() != sources.oldselection:
     print("refresh source recs")
     update_srcrecs_list(conn, sources, srcrecs)
     sources.oldselection=sources.curselection()
+  if srcrecs.curselection() != srcrecs.oldselection:
+    print("refresh record")
+    update_srcrec_text(conn, sources, srcrecs, record)
+    srcrecs.oldselection = srcrecs.curselection()
   sources.after(201, lambda: src_refresher(conn, src_info))
 
 update_sources_list(conn, sources)
