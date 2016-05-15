@@ -300,7 +300,7 @@ def update_goods(conn, goods, goods_filter):
   goods.delete(0, END)
   goods.oldselection = None
   gf = re.compile(goods_filter, re.I)
-  for gi, gn, gd, gm, gc in cs.execute("select goodid, name, description, manufacturer, code from goods"):
+  for gi, gn, gd, gm, gc in conn.cursor().execute("select goodid, name, description, manufacturer, code from goods"):
     if gf.search(gn) or gf.search(gd) or gf.search(gm) or gf.search(gc):
       goods.insert(END, "%d %s"%(gi,gn))
 
@@ -311,9 +311,51 @@ def set_goods_filter(coon, goods, goodfilter):
 
 gfapply.config(command=lambda: set_goods_filter(conn, goods, goodfilter))
 
+def update_goods_only_changes(conn, goods):
+  goods.delete(0, END)
+  goods.oldselection = None
+  cs1=conn.cursor()
+  cs2=conn.cursor()
+  for srcid, xid in changes.keys():
+    gi=list(cs1.execute("select goodid from src_data where srcid=? and xid=?", (srcid, xid)))
+    if gi[0][0] is not None:
+      gi=gi[0][0]
+      gn = cs2.execute("select name from goods where goodid=?", ())[0][0]
+      goods.insert(END, "%d %s"%(gi,gn))
+
+gfchanged.config(command = lambda: update_goods_only_changes(conn, goods))
+
 
 delgood = Button(goodslist, text="удалить товар")
 delgood.grid(row=4)
+# set goodid to none in src_recs
+# delete from goods
+# add to new_recs
+# refresh source listboxes
+
+sources_changed = False
+
+def delete_good(conn, goods, src_info):
+  cs=conn.cursor()
+  sel = goods.curselection()
+  if not sel: 
+    return
+  goodid = int(goods.get(sel[0]).split(" ", 2)[0])
+  print("del good", goodid)
+
+  save_recs = list(cs.execute("select srcid, xid, name, img, price, pack, bulk, year, code, barcode, descr, manuf, avail, "
+      "grp, net_weight,volume from src_data where goodid=?", (goodid,)))
+
+  cs.execute("update src_data set goodid=NULL where goodid=?", (goodid,))
+  cs.execute("delete from goods where goodid=?", (goodid,))
+  goods.delete(sel[0])
+  goods.oldselection = None
+
+  for r in save_recs:
+    new_recs[(r[0], r[1])]=tuple(r[2:])
+
+  src_info[0] = True
+
 
 exportgoods = Button(goodslist, text="Выгрузить")
 exportgoods.grid(row=5)
@@ -498,13 +540,20 @@ def update_srcrec_text(conn, sources, srcrecs, record):
 src_info = [False, sources, srcrecs, srcrec_text]
 # first field is 'force refresh'
 
+# must be here as it must trigger refresh of sources
+delgood.config(command = lambda: delete_good(conn, goods, src_info))
+
 # обновление данных о товаре при изменении selection
 # обновление виджетов при изменении списка новых (непривязанных) позиций
 
 def src_refresher(conn, src_info):
-  #
   sources = src_info[1]
   force_update = src_info[0]
+  if force_update:
+    print("refreshing sources")
+    update_sources_list(conn, sources)
+    src_info[0] = False
+  #
   srcrecs = src_info[2]
   record = src_info[3]
   if sources.curselection() != sources.oldselection:
