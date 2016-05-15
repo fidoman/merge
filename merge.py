@@ -454,10 +454,18 @@ def update_sources_list(conn, sources):
     sources.insert(END, "%d %s"%(srcid, srcfile))
 
 
-def update_srcrecs_list(source):
+def update_srcrecs_list(conn, sources, srcrecs):
   # list of unassigned source records
-  pass
-  
+  srcrecs.delete(0, END)
+  srcrecs.oldselection = None
+  if sources.curselection():
+    sel = sources.get(sources.curselection()[0])
+    sel_srcid = int(sel.split(" ",2)[0])
+    for srcid, xid in new_recs.keys():
+      if srcid == sel_srcid:
+        name = new_recs[(srcid, xid)][0]
+        srcrecs.insert(END, xid+" "+name)
+
 def update_srcrec_text(source, record):
   pass
 
@@ -467,19 +475,20 @@ src_info = [False, sources, srcrecs, srcrec_text]
 # обновление данных о товаре при изменении selection
 # обновление виджетов при изменении списка новых (непривязанных) позиций
 
-def src_refresher(src_info):
+def src_refresher(conn, src_info):
   #
   sources = src_info[1]
   force_update = src_info[0]
+  srcrecs = src_info[2]
   if sources.curselection() != sources.oldselection:
     print("refresh source recs")
-    ###
+    update_srcrecs_list(conn, sources, srcrecs)
     sources.oldselection=sources.curselection()
-  sources.after(201, lambda: src_refresher(src_info))
+  sources.after(201, lambda: src_refresher(conn, src_info))
 
 update_sources_list(conn, sources)
 sources.oldselection = None
-sources.after(1000, lambda: src_refresher(src_info))
+sources.after(1000, lambda: src_refresher(conn, src_info))
 
 searchgood = Button(fsuppliers, text="найти подходящие товары")
 searchgood.pack()
