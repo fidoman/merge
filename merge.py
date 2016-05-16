@@ -7,7 +7,7 @@ import ast
 import os
 import re
 
-INIT=True
+INIT=False
 
 if INIT:
   os.unlink("burbeer.sqlite")
@@ -124,15 +124,6 @@ print("END SOURCES ANALYZIS")
 
 # --- database operations ---
 
-def get_srcdata(conn, srcid, goodid):
-    l=list(conn.cursor().execute("select xid, name, img, price, pack, bulk, year, code, barcode, descr, manuf, "
-    "avail, grp, net_weight, volume from src_data where srcid=? and goodid=?", (srcid, goodid)))
-    if len(l)==0:
-      raise Exception("No src_data for %s in source %s"%(repr(goodid), repr(srcid)))
-    if len(l)>1:
-      raise Exception("Multiple src_data for %s in source %s"%(repr(goodid), repr(srcid)))
-    return l[0]
-
 def export_goods(conn):
   """ will export:
   Код, Наименование, Группа, Штрихкод, Производитель, Характеристика, Артикул, Веснетто, Изображение, 
@@ -239,11 +230,8 @@ for srcid, xid in list(new_recs.keys()):
 
 del new_recs
 
-#print(get_srcdata(conn, 1,10))
 #export_goods(conn)
 #exit()
-
-
 
 #3 set availability in unverified to 0 -- generate on export
 #4 review updated objects
@@ -431,7 +419,7 @@ def refresher(goods, i):
 
     if sel:
       goodid=int(goods.get(sel[0]).split(' ',1)[0])
-      print("goodid=",goodid)
+      print("selected good", goodid)
       gname, gdescription, gvolume, gmanufacturer, gyear, gcode, gpic = \
         list(cs.execute("select name, description, volume, manufacturer, year, code, pic from goods where goodid=?", (goodid,)))[0]
       i[0].insert(0, gname or '')
@@ -446,10 +434,10 @@ def refresher(goods, i):
         #"src_exists, srcid, goodid, xid, name, "
         #"img, price, pack, bulk, year, code, barcode, descr, manuf, avail, grp, net_weight, volume"
         " from src_data where goodid=?",
-        (int(goodid),)))
+        (goodid,)))
       for gsrcid, gxid in gsrcs:
-        gsrcname=list(cs.execute("select srcfile from sources where srcid=?", (int(gsrcid),)))[0][0]
-        i[7].insert(END, "source %s %s"%(gsrcid, gsrcname))
+        gsrcname=list(cs.execute("select srcfile from sources where srcid=?", (gsrcid,)))[0][0]
+        i[7].insert(END, "%d %s %s"%(gsrcid, gxid, gsrcname))
 
       i[7].oldsel=i[7].curselection() # essentially no selection
 
@@ -465,9 +453,10 @@ def refresher(goods, i):
       src_selection = i[7].curselection()
       if src_selection:
         src_selected = i[7].get(src_selection[0])
-        sel_srcid=int(src_selected.split(' ',2)[1])
-        sel_srcrec=get_srcdata(conn,sel_srcid,goodid)
-        sel_xid=sel_srcrec[0]
+        sel_srcid = int(src_selected.split(' ', 2)[0])
+        sel_xid = src_selected.split(' ', 2)[1]
+        sel_srcrec=list(conn.cursor().execute("select " + ",".join(SRCDATA_FIELDS) +
+           " from src_data where srcid=? and xid=?", (sel_srcid, sel_xid)))[0]
         i[8].insert(END, "%s goodid: %d\n"%(src_selected, goodid))
         sel_changes = changes.get((sel_srcid, sel_xid))
         if sel_changes:
@@ -511,10 +500,12 @@ def unbind_source(conn, goods, goodsources, src_info):
     print("source is not selected")
     return
   goodid = int(goods.get(sel_good[0]).split(" ", 2)[0])
-  srcid = int(goodsources.get(sel_src[0]).split(" ", 2)[1])
-  conn.cursor().execute("update src_data set goodid=NULL where goodid=? and srcid=?", (goodid, srcid))
+  srcid = int(goodsources.get(sel_src[0]).split(" ", 2)[0])
+  xid = goodsources.get(sel_src[0]).split(" ", 2)[1]
+  conn.cursor().execute("update src_data set goodid=NULL where srcid=? and xid=?", (srcid, xid))
   goods.oldselection = None
   src_info[0] = True
+
 
 
 # --- sources
@@ -630,6 +621,31 @@ searchgood.config(command = lambda: search_goods_for_code(conn, goods, src_info)
 
 assignrec = Button(fsuppliers, text="привязать к выбранному товару")
 assignrec.pack()
+
+def bind_source(conn, goods, src_info):
+  sel_good = goods.curselection()
+  if not sel_good:
+    print("good is not selected")
+    return
+  goodid = int(goods.get(sel_good[0]).split(" ", 2)[0])
+  if sources.curselection():
+    sel = sources.get(sources.curselection()[0])
+    sel_srcid = int(sel.split(" ",2)[0])
+  else:
+    print("source is not selected")
+    return
+  if srcrecs.curselection():
+    sel = srcrecs.get(srcrecs.curselection()[0])
+    sel_xid = sel.split(" ",2)[0]
+  else:
+    print("record is not selected")
+    return
+
+  conn.cursor().execute("update src_data set goodid=? where srcid=? and xid=?", (goodid, sel_srcid, sel_xid))
+  goods.oldselection = None
+  src_info[0] = True
+
+assignrec.config(command = lambda: bind_source(conn, goods, src_info))
 
 newgood = Button(fsuppliers, text="добавить как новый товар")
 newgood.pack()
