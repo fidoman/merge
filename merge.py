@@ -628,6 +628,9 @@ def bind_source(conn, goods, src_info):
     print("good is not selected")
     return
   goodid = int(goods.get(sel_good[0]).split(" ", 2)[0])
+
+  sources = src_info[1]
+  srcrecs = src_info[2]
   if sources.curselection():
     sel = sources.get(sources.curselection()[0])
     sel_srcid = int(sel.split(" ",2)[0])
@@ -649,6 +652,36 @@ assignrec.config(command = lambda: bind_source(conn, goods, src_info))
 
 newgood = Button(fsuppliers, text="добавить как новый товар")
 newgood.pack()
+
+def to_new_good(conn, goods, src_info):
+  # get info from selected source
+  sources = src_info[1]
+  srcrecs = src_info[2]
+  if sources.curselection():
+    sel = sources.get(sources.curselection()[0])
+    sel_srcid = int(sel.split(" ",2)[0])
+  else:
+    print("source is not selected")
+    return
+  if srcrecs.curselection():
+    sel = srcrecs.get(srcrecs.curselection()[0])
+    sel_xid = sel.split(" ",2)[0]
+  else:
+    print("record is not selected")
+    return
+
+  # pass autotrans
+  #..
+  # add to list of goods
+  #..
+  # bind
+  #..
+  src_info[0] = True
+  # select new good for instant editing
+  print()
+  exit()
+
+newgood.config(command = lambda: to_new_good(conn, goods, src_info))
 
 #w = Label(root, text="preparing...")
 #w.pack()
