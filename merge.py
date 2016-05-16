@@ -123,6 +123,9 @@ print("deleted:", len(deletions))
 
 print("END SOURCES ANALYZIS")
 
+cs.close()
+del cs
+
 # --- database operations ---
 
 def export_goods(conn):
@@ -403,7 +406,7 @@ goodsourcedata.grid(row=7, column=1)
 
 goodinfofields = [name, descr, volume, manuf, year, code, pic, goodsources, goodsourcedata]
 
-def refresher(goods, i):
+def refresher(conn, goods, i):
   "refresh selected good's info"
 
   sel=goods.curselection()
@@ -419,6 +422,7 @@ def refresher(goods, i):
     i[8].delete("0.0", END)
 
     if sel:
+      cs = conn.cursor()
       goodid=int(goods.get(sel[0]).split(' ',1)[0])
       print("selected good", goodid)
       gname, gdescription, gvolume, gmanufacturer, gyear, gcode, gpic = \
@@ -471,21 +475,21 @@ def refresher(goods, i):
         i[8].delete("0.0", END)
       i[7].oldsel=i[7].curselection()
     
-  goods.after(200, lambda: refresher(goods, i))
+  goods.after(200, lambda: refresher(conn, goods, i))
 
-def good_updater(goods, i):
+def good_updater(conn, goods, i):
   sel=goods.curselection()
   if sel:
     goodid=int(goods.get(sel[0]).split(' ',1)[0])
-    cs.execute("update goods set name=?, description=?, volume=?, manufacturer=?, year=?, code=? "
+    conn.cursor().execute("update goods set name=?, description=?, volume=?, manufacturer=?, year=?, code=? "
       "where goodid=?", (i[0].get(), i[1].get(), i[2].get(), i[3].get(), i[4].get(), i[5].get(), goodid))
     print(goodid, "updated")
 
-update_good.config(command=lambda: good_updater(goods, goodinfofields))
+update_good.config(command=lambda: good_updater(conn, goods, goodinfofields))
 
 
 goods.oldselection=None
-goods.after(1000, lambda: refresher(goods, goodinfofields))
+goods.after(1000, lambda: refresher(conn, goods, goodinfofields))
 
 
 unbindsrc = Button(goodinfo, text="отвязать выбранный источник")
@@ -573,14 +577,15 @@ unbindsrc.config(command = lambda: unbind_source(conn, goods, goodsources, src_i
 def src_refresher(conn, src_info):
   sources = src_info[1]
   force_update = src_info[0]
-  if force_update:
-    print("refreshing sources")
-    update_sources_list(conn, sources)
-    src_info[0] = False
+#  if force_update:
+#    print("refreshing sources")
+#    update_sources_list(conn, sources)
+#    src_info[0] = False
   #
   srcrecs = src_info[2]
   record = src_info[3]
-  if sources.curselection() != sources.oldselection:
+  if sources.curselection() != sources.oldselection or force_update:
+    src_info[0] = False
     print("refresh source recs")
     update_srcrecs_list(conn, sources, srcrecs)
     sources.oldselection=sources.curselection()
@@ -654,7 +659,13 @@ assignrec.config(command = lambda: bind_source(conn, goods, src_info))
 newgood = Button(fsuppliers, text="добавить как новый товар")
 newgood.pack()
 
+#SRCDATA_FIELDS=("xid", "name", "img", "price", "pack", "bulk", "year", "code", "barcode", "descr", 
+#                "manuf", "avail", "grp", "net_weight", "volume")
+
+
 def to_new_good(conn, goods, src_info):
+  cs=conn.cursor()
+
   # get info from selected source
   sources = src_info[1]
   srcrecs = src_info[2]
@@ -679,15 +690,55 @@ def to_new_good(conn, goods, src_info):
   group = rec[12]
   print(name)
   # pass autotrans
-  print(autotrans.autotrans(name, code, group))
+  auto = autotrans.autotrans(name, code, group)
+  name = auto[0]
+  volume = auto[1] or rec[14]
+  descr = rec[9]
+  manuf = rec[10]
+  year = rec[6]
+  img = rec[2]
+
   # add to list of goods
-  #..
+  cs.execute("insert into goods values (NULL, ?, ?, ?, ?, ?, ?, ?)", (name, descr, volume, manuf, year, code, img))
+  # as sqlite does not have 'returning goodid', try to re-find added good
+  
+  checks=[]
+  q=[]
+  if manuf is not None:
+    checks.append(manuf)
+    q.append("manufacturer=?")
+  else:
+    q.append("manufacturer is NULL")
+
+  checks.append(name)
+  q.append("name=?")
+
+  if year is not None:
+    checks.append(year)
+    q.append("year=?")
+  else:
+    q.append("year is NULL")
+
+  if code is not None:
+    checks.append(code)
+    q.append("code=?")
+  else:
+    q.append("code is NULL")
+
+  added_good = list(cs.execute("select goodid from goods where "+" and ".join(q), tuple(checks)))
+  if len(added_good)!=1:
+    print("added good is lost! (matching records count=%d)"%len(added_good))
+    return
+  goodid = added_good[0][0]
+  goods.insert(END, "%d %s"%(goodid, name))
+  goods.oldselection = None
+  goods.selection_set(END)
+  goods.see(END)
+
   # bind
-  #..
+  cs.execute("update src_data set goodid=? where srcid=? and xid=?", (goodid, sel_srcid, sel_xid))
   src_info[0] = True
   # select new good for instant editing
-  print()
-  exit()
 
 newgood.config(command = lambda: to_new_good(conn, goods, src_info))
 
