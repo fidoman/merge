@@ -8,7 +8,8 @@ import os
 import re
 import autotrans
 
-INIT = True
+#INIT = True
+INIT = False
 
 if INIT:
   os.unlink("burbeer.sqlite")
@@ -80,7 +81,8 @@ for srcid, srcfile, prefix, imgpath in sources:
     xid, name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight = \
       ast.literal_eval(l.strip())
     volume=None # currently no source contains this field
-    img = imgpath + img
+    if img is not None:
+      img = imgpath + img
     #print(xid, name)
     existing_data = list(cs.execute("select "+",".join(SRCDATA_FIELDS)+" from src_data where srcid=? and xid=?", 
        (srcid, xid)))
@@ -173,6 +175,8 @@ def export_goods(conn):
 # 3) update goods with data from translations.ods
 # 4) second source process with manual matching
 if INIT:
+  cs = conn.cursor()
+
   print("reading translations.dat...")
   trans = {}
   for l in open("translations.dat"):
@@ -223,14 +227,20 @@ if INIT:
   open("m","w").write(repr(m))
   print("new records after INIT:", len(new_recs))
 
+  cs.close()
+  del cs
+  
 # --- END INIT ---
 
 # adding new records to database
 
+cs=conn.cursor()
 for srcid, xid in list(new_recs.keys()):
   name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight,volume = new_recs[(srcid, xid)]
   cs.execute("insert into src_data values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
     (True, False, srcid, None, xid, name, img, price, pack,bulk,year,code,barcode,descr,manuf,avail,group,net_weight,volume))
+cs.close()
+del cs
 
 del new_recs
 
