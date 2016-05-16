@@ -1,4 +1,4 @@
-#!/usr/bin/python3 
+#!/usr/bin/python3
 
 import apsw
 from tkinter import *
@@ -6,6 +6,7 @@ import time
 import ast
 import os
 import re
+import autotrans
 
 INIT=False
 
@@ -670,8 +671,15 @@ def to_new_good(conn, goods, src_info):
     print("record is not selected")
     return
 
+  rec = list(conn.cursor().execute("select "+",".join(SRCDATA_FIELDS)+" from src_data where srcid=? and xid=?",
+       (sel_srcid, sel_xid)))[0]
+
+  name = rec[1]
+  code = rec[7]
+  group = rec[12]
+  print(name)
   # pass autotrans
-  #..
+  print(autotrans.autotrans(name, code, group))
   # add to list of goods
   #..
   # bind
