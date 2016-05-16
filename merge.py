@@ -8,7 +8,7 @@ import os
 import re
 import autotrans
 
-INIT=False
+INIT = True
 
 if INIT:
   os.unlink("burbeer.sqlite")
@@ -17,11 +17,11 @@ conn = apsw.Connection("burbeer.sqlite")
 conn.cursor().execute("PRAGMA synchronous=off")
 
 
-conn.cursor().execute("create table if not exists sources(srcid, srcfile, prefix)")
+conn.cursor().execute("create table if not exists sources(srcid, srcfile, prefix, picbase)")
 conn.cursor().execute("create unique index if not exists srcs_index ON sources (srcid)")
 if INIT:
-  conn.cursor().execute("insert into sources values (1, 'pilot.dat', '')")
-  conn.cursor().execute("insert into sources values (2, 'spectorg_q.dat', 'S-')")
+  conn.cursor().execute("insert into sources values (1, 'pilot.dat', '', '')")
+  conn.cursor().execute(r"insert into sources values (2, 'spectorg_q.dat', 'S-', 'C:\SPECTORG\')")
 
 
 SRCDATA_FIELDS=("xid", "name", "img", "price", "pack", "bulk", "year", "code", "barcode", "descr", 
@@ -75,21 +75,21 @@ new_recs = {}
 deletions = []
 
 sources = list(cs.execute("select * from sources"))
-for srcid, srcfile, prefix in sources:
+for srcid, srcfile, prefix, imgpath in sources:
   for l in open(srcfile):
     xid, name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight = \
       ast.literal_eval(l.strip())
     volume=None # currently no source contains this field
+    img = imgpath + img
     #print(xid, name)
-    existing_data = list(cs.execute("select * from src_data where srcid=? and xid=?", (srcid, xid)))
+    existing_data = list(cs.execute("select "+",".join(SRCDATA_FIELDS)+" from src_data where srcid=? and xid=?", 
+       (srcid, xid)))
     if existing_data:
       #print("src", srcid, "same record", xid)
       cs.execute("update src_data set src_exists=? where srcid=? and xid=?", (True,srcid, xid))
       #..compare
-      db_name, db_img, db_price, db_pack, db_bulk, db_year, db_code, db_barcode, db_descr,\
-        db_manuf, db_avail, db_group, db_net_weight, db_volume = \
-        list(cs.execute("select name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,grp,net_weight,volume "
-        "from src_data where srcid=? and xid=?", (srcid, xid)))[0]
+      db_xid, db_name, db_img, db_price, db_pack, db_bulk, db_year, db_code, db_barcode, db_descr,\
+        db_manuf, db_avail, db_group, db_net_weight, db_volume = existing_data[0]
       #.. if manuf or year or code differs - drop relation as its different good (except for None --> value)
       if db_manuf and db_manuf!=manuf or db_year and db_year!=year or db_code and db_code!=code:
         print("record", srcid, xid, "identication changed, dropping")
