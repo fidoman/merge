@@ -326,7 +326,7 @@ def update_goods_only_changes(conn, goods):
     gi=list(cs1.execute("select goodid from src_data where srcid=? and xid=?", (srcid, xid)))
     if gi[0][0] is not None:
       gi=gi[0][0]
-      gn = cs2.execute("select name from goods where goodid=?", ())[0][0]
+      gn = list(cs2.execute("select name from goods where goodid=?", (gi,)))[0][0]
       goods.insert(END, "%d %s"%(gi,gn))
 
 gfchanged.config(command = lambda: update_goods_only_changes(conn, goods))
@@ -475,7 +475,12 @@ def refresher(conn, goods, i):
         i[8].insert(END, "%s goodid: %d\n"%(src_selected, goodid))
         sel_changes = changes.get((sel_srcid, sel_xid))
         if sel_changes:
-          i[8].insert(END, "changes: "+repr(changes)) ### MAKE READABLE
+          #i[8].insert(END, "changes: "+repr(changes)) ### MAKE READABLE
+          for c_src, c_val in changes.items():
+            for c_i in range(len(c_val[0])): # len should be same with c_val[1]
+              if c_val[0][c_i] != c_val[1][c_i]:
+                i[8].insert(END, "OLD: %s\n"%c_val[0][c_i])
+                i[8].insert(END, "NEW: %s\n"%c_val[1][c_i])
         else:
           i[8].insert(END, "no changes\n")
         for item_name, sel_srcrec_item in zip(SRCDATA_FIELDS, sel_srcrec):
@@ -484,15 +489,25 @@ def refresher(conn, goods, i):
       else:
         i[8].delete("0.0", END)
       i[7].oldsel=i[7].curselection()
-    
+
   goods.after(200, lambda: refresher(conn, goods, i))
 
 def good_updater(conn, goods, i):
   sel=goods.curselection()
   if sel:
+    cs = conn.cursor()
+    cs2 = conn.cursor()
     goodid=int(goods.get(sel[0]).split(' ',1)[0])
-    conn.cursor().execute("update goods set name=?, description=?, volume=?, manufacturer=?, year=?, code=? "
+    cs.execute("update goods set name=?, description=?, volume=?, manufacturer=?, year=?, code=? "
       "where goodid=?", (i[0].get(), i[1].get(), i[2].get(), i[3].get(), i[4].get(), i[5].get(), goodid))
+    # update src_data if changes exist and delete change
+    for srcid, xid in cs.execute("select srcid, xid from src_data where goodid=?", (goodid,)):
+      print("updating src_data for %d %s"%(srcid, xid))
+      if (srcid, xid) in changes:
+        # name, img, pack, bulk, barcode, descr, group, net_weight, volume
+        cs2.execute("update src_data set name=?, img=?, pack=?, bulk=?, barcode=?, descr=?, grp=?, "
+          "net_weight=?, volume=? where srcid=? and xid=?", changes[(srcid, xid)][1]+(srcid, xid))
+        changes.pop((srcid, xid))
     print(goodid, "updated")
 
 update_good.config(command=lambda: good_updater(conn, goods, goodinfofields))
