@@ -13,7 +13,7 @@ import re
 class TableGrouper:
   def __init__(self):
     self.rows=[]
-    self.dump = open("tdump", "w")
+    self.dump = open("tdump", "w", encoding="utf-8")
     self.limit=100
     self.groups=[]
 
@@ -148,14 +148,14 @@ def read_spectorg_quantities():
   f.close()
   z.close()
 
-  descf = open("spectorg.dat")
+  descf = open("spectorg.dat", encoding="utf-8")
   desc = {}
   for d in descf:
     xid,name,code,pack1,pack2,img_f,material,manuf,grouping = ast.literal_eval(d.strip())
     desc[xid]=[name,code,pack1,pack2,img_f,material,manuf,grouping]
   descf.close()
 
-  of = open("spectorg_q.dat", "w")
+  of = open("spectorg_q.dat", "w", encoding="utf-8")
   first=True
   for grouping, cells, hrefs in t.rows:
     if len(cells)<8:
@@ -194,7 +194,7 @@ def read_spectorg():
   #material=set()
   #manuf=set()
 
-  f = open("spectorg.dat", "w")
+  f = open("spectorg.dat", "w", encoding="utf-8")
   #f.write(repr(['Группа', 'Пусто1', 'Наименование', 'Идентификатор', 'Артикул', 'Упаковка1', 'Упаковка2', 'Изображение', 'Материал', 'Производитель', 'Цена'])+'\n')
   for grouping, cells, hrefs in t.rows:
     if not grouping:
@@ -216,7 +216,18 @@ def read_spectorg():
 
     material=''.join(cells[7]).strip()
     manuf=''.join(cells[8]).strip()
-    f.write(repr([xid,name,code,pack1,pack2,img_f,material,manuf,grouping])+"\n")
+
+    f.write(repr([xid, name, code, pack1, pack2, img_f, material, manuf, grouping])+"\n")
+    
+#    f.write(repr([xid.encode("utf-8"),
+#		(name or '').encode("utf-8"), 
+#		(code or '').encode("utf-8"),
+#		(pack1 or '').encode("utf-8"), 
+#		(pack2 or '').encode("utf-8"),
+#		(img_f or '').encode("utf-8"),
+#		(material or '').encode("utf-8"),
+#		(manuf or '').encode("utf-8"),
+#		grouping])+"\n")
 
   f.close()
 
@@ -242,7 +253,7 @@ def split_tsv(s):
 def read_pilot_groups():
   print("PILOT: Reading groups")
   groups={}
-  for l in open("pilot_groups.tsv"):
+  for l in open("pilot_groups.tsv", encoding="utf-8"):
     g_id, g_name, g_file, g_export, g_displayname, g_manuffilter = split_tsv(l)
     groups[g_name] = {"displayname": g_displayname, "manuffilter": g_manuffilter, "export": True if g_export=="True" else False}
     if g_file:
@@ -269,7 +280,7 @@ def read_pilot_groups():
 #      except:
 #        print("Failed:", g_fn)
 #        continue
-  of = open("pilot_groups.dat", "w")
+  of = open("pilot_groups.dat", "w", encoding="utf-8")
   of.write(repr(groups))
   of.close()
 
@@ -292,14 +303,14 @@ def pilot_img(url):
             f.close()
           except:
             print("failed")
-            faillog = open("pilog_img_fail", "a")
+            faillog = open("pilog_img_fail", "a", encoding="utf-8")
             faillog.write("%s\t%s\n"%(xid, url))
             faillog.close()
   else:
         print ("bad url", url, "for", name)
 
 def read_pilot():
-  groups = ast.literal_eval(open("pilot_groups.dat").read())
+  groups = ast.literal_eval(open("pilot_groups.dat", encoding="utf-8").read())
 
   z=zipfile.ZipFile(r"pilot.ods")
   f=z.open("content.xml")
@@ -311,7 +322,7 @@ def read_pilot():
   f.close()
   z.close()
 
-  of=open("pilot.dat", "w")
+  of=open("pilot.dat", "w", encoding="utf-8")
   first = True
   for grouping, cells, hrefs in t.rows:
     if len(cells)<12:
@@ -361,7 +372,7 @@ def read_pilot():
 
 # *  *  *  *  *
 
-if False:
+if True:
   z=zipfile.ZipFile("translations.ods")
   f=z.open("content.xml")
   parser = xml.sax.make_parser()
@@ -371,7 +382,7 @@ if False:
   parser.parse(f)
   f.close()
   z.close()
-  of=open("translations.dat", "w")
+  of=open("translations.dat", "w", encoding="utf-8")
   for r in t.rows:
     text = r[1]
     if not text:
@@ -385,7 +396,8 @@ if False:
       descr=None
     of.write(repr([xid,name,descr,vol])+'\n')
   of.close()
-  exit()
+#  exit()
+
 
 read_spectorg()
 read_spectorg_quantities()

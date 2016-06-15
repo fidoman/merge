@@ -8,8 +8,8 @@ import os
 import re
 import autotrans
 
-#INIT = True
-INIT = False
+INIT = True
+#INIT = False
 
 if INIT:
   os.unlink("burbeer.sqlite")
@@ -77,7 +77,7 @@ deletions = []
 
 sources = list(cs.execute("select * from sources"))
 for srcid, srcfile, prefix, imgpath in sources:
-  for l in open(srcfile):
+  for l in open(srcfile, encoding="utf-8"):
     xid, name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight = \
       ast.literal_eval(l.strip())
     volume=None # currently no source contains this field
@@ -179,7 +179,7 @@ if INIT:
 
   print("reading translations.dat...")
   trans = {}
-  for l in open("translations.dat"):
+  for l in open("translations.dat", encoding="utf-8"):
     xid, name, descr, vol = ast.literal_eval(l.strip())
     trans[xid] = (name, descr, vol)
 
@@ -224,7 +224,7 @@ if INIT:
           new_recs.pop((srcid, xid))
           m.setdefault((manuf, e[0][4]), []).append(code)
 
-  open("m","w").write(repr(m))
+  open("m","w", encoding="utf-8").write(repr(m))
   print("new records after INIT:", len(new_recs))
 
   cs.close()
