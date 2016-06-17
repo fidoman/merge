@@ -8,8 +8,8 @@ import os
 import re
 import autotrans
 
-INIT = True
-#INIT = False
+#INIT = True
+INIT = False
 
 if INIT:
   os.unlink("burbeer.sqlite")
@@ -216,7 +216,10 @@ if INIT:
         if len(e)==1:
           #m[(manuf, e[0][4])]=m.get((manuf, e[0][4]), 0) + 1
           goodid = e[0][0]
-          print(srcid, name, manuf, "code=%s"%code, "goodid=%d"%goodid)
+          try:
+            print(srcid, name, manuf, "code=%s"%code, "goodid=%d"%goodid)
+          except:
+            pass
           print("Found unique good with same code")
           # attach to good: set goodid and remove from new_recs
           cs.execute("insert into src_data values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
