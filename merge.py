@@ -26,14 +26,14 @@ if INIT:
 
 
 SRCDATA_FIELDS=("xid", "name", "img", "price", "pack", "bulk", "year", "code", "barcode", "descr", 
-                "manuf", "avail", "grp", "net_weight", "volume")
+                "manuf", "avail", "grp", "net_weight", "volume", "dimensions")
 
 conn.cursor().execute("create table if not exists src_data(src_exists, ignored, srcid, goodid, " +
           ", ".join(SRCDATA_FIELDS)+")")
 conn.cursor().execute("create unique index if not exists src_index ON src_data (srcid, xid)")
 
 conn.cursor().execute("create table if not exists "
-   "goods(goodid INTEGER PRIMARY KEY AUTOINCREMENT, name, description, volume, manufacturer, year, code, pic)")
+   "goods(goodid INTEGER PRIMARY KEY AUTOINCREMENT, name, description, volume, dimensions, manufacturer, year, code, pic)")
 
 # events: 
 #   attribute change
@@ -78,9 +78,8 @@ deletions = []
 sources = list(cs.execute("select * from sources"))
 for srcid, srcfile, prefix, imgpath in sources:
   for l in open(srcfile, encoding="utf-8"):
-    xid, name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight = \
+    xid, name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group, net_weight, volume, dimensions = \
       ast.literal_eval(l.strip())
-    volume=None # currently no source contains this field
     if img is not None:
       img = imgpath + img
     #print(xid, name)
@@ -91,29 +90,29 @@ for srcid, srcfile, prefix, imgpath in sources:
       cs.execute("update src_data set src_exists=? where srcid=? and xid=?", (True,srcid, xid))
       #..compare
       db_xid, db_name, db_img, db_price, db_pack, db_bulk, db_year, db_code, db_barcode, db_descr,\
-        db_manuf, db_avail, db_group, db_net_weight, db_volume = existing_data[0]
+        db_manuf, db_avail, db_group, db_net_weight, db_volume, db_dimensions = existing_data[0]
       #.. if manuf or year or code differs - drop relation as its different good (except for None --> value)
       if db_manuf and db_manuf!=manuf or db_year and db_year!=year or db_code and db_code!=code:
         print("record", srcid, xid, "identication changed, dropping")
         # delete relation to good - recreate record
         deletions.append([srcid, xid])
-        new_recs[(srcid, xid)]=(name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight,volume)
+        new_recs[(srcid, xid)]=(name, img, price, pack, bulk, year, code, barcode, descr, manuf, avail, group, net_weight, volume, dimensions)
 
       elif name!=db_name or img!=db_img or pack!=db_pack or bulk!=db_bulk or barcode!=db_barcode or \
-        descr!=db_descr or group!=db_group or net_weight!=db_net_weight or volume!=db_volume:
+        descr!=db_descr or group!=db_group or net_weight!=db_net_weight or volume!=db_volume or dimensions!=db_dimensions:
         print("record", srcid, xid, "updated")
-        print(db_name, db_img, db_pack, db_bulk, db_barcode, db_descr, db_group, db_net_weight, db_volume)
-        print(name, img, pack, bulk, barcode, descr, group, net_weight, volume)
+        print(db_name, db_img, db_pack, db_bulk, db_barcode, db_descr, db_group, db_net_weight, db_volume, db_dimensions)
+        print(name, img, pack, bulk, barcode, descr, group, net_weight, volume, dimensions)
 
         changes[(srcid, xid)]=[
-          (db_name, db_img, db_pack, db_bulk, db_barcode, db_descr, db_group, db_net_weight, db_volume), 
-          (name, img, pack, bulk, barcode, descr, group, net_weight, volume)]
+          (db_name, db_img, db_pack, db_bulk, db_barcode, db_descr, db_group, db_net_weight, db_volume, db_dimensions), 
+          (name, img, pack, bulk, barcode, descr, group, net_weight, volume, dimensions)]
       else:
 #        print("record", srcid, xid, "no changes")
         pass
     else:
       print("src", srcid, "new record", xid)
-      new_recs[(srcid, xid)]=(name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight,volume)
+      new_recs[(srcid, xid)]=(name, img, price, pack,bulk, year,code,barcode,descr,manuf,avail,group,net_weight, volume, dimensions)
 
   print(srcfile, "done")
 
@@ -145,7 +144,7 @@ def export_goods(conn):
     #print(repr(srcid), repr(prefix))
 
   cursor2 = conn.cursor()
-  for goodid, name, description, volume, manufacturer, year, code, pic in cursor1.execute("select * from goods"):
+  for goodid, name, description, volume, dimensions, manufacturer, year, code, pic in cursor1.execute("select * from goods"):
     # get price and availability from src_data
     for s, p, a, x, g, b, w, v in cursor2.execute("select srcid, price, avail, xid, grp, barcode, "
             "net_weight, volume from src_data where goodid=? order by srcid", (goodid,)):

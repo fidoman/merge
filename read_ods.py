@@ -10,6 +10,8 @@ import sys
 import ast
 import re
 
+.. add fields volume and dimensions
+
 class TableGrouper:
   def __init__(self):
     self.rows=[]
